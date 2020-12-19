@@ -1,10 +1,11 @@
 from env import Env
-from mcts import Evaluator
+from mcts import Evaluator, mcts
+import numpy as np
 
 
 class config:
-    num_simulations = 50
-    num_rollouts = 100
+    num_simulations = 10
+    num_rollouts = 5
     uct_c = 1.25
 
 
@@ -15,15 +16,16 @@ def main():
     state, _, done, info = env.reset()
     assert info["pa"]
     total_reward = 0
-    actions = []
     t = 0
-    actions = ["v2", "v3", "v1"]
+    actions = ["v2", "v1"]
+    # env.render()
     while not done:
-        # action = np.random.choice(info["pa"])
-        # root = mcts(env.get_state(), simulator, evaluator, config)
-        action = actions[t]  # root.best_child().action
+        #action = np.random.choice(info["pa"])
+        action = mcts(env.get_state(), simulator, evaluator, config).best_child().action
+        # action = actions[t]  # root.best_child().action
         state, reward, done, info = env.step(action)
         total_reward += reward
+        # env.render()
         print(info)
         t += 1
         # actions.append(root.best_child().action)

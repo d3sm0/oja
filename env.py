@@ -7,82 +7,89 @@ from typing import NamedTuple, Dict, Any, Tuple, Union, List
 import gym
 import numpy as np
 
-PATH = {"x1": ((), ("v1",)),
-        "x2": ((), ("v1",)),
-        "v1": (("x1", "x2"), ("v2", "y1")),
-        "v2": (("v1",), ("v3",)),
-        "v3": (("v2",), ("y2",)),
-        "y2": (("v3",), ()),
-        "y1": (("v1", "v3"), ()),
+from utils import plot_computational_graph
+
+PATH = {"x1": ("v1", "y3"),
+        "x2": ("v1",),
+        "x3": ("v1",),
+        "v1": ("v2", "y3"),
+        "v2": ("y1", "y2", "y3"),
+        "y1": (),
+        "y2": (),
+        "y3": (),
         }
 
 
 class GameState(NamedTuple):
     state: np.ndarray
     # reward: float
-    done: int
+    done: bool
     info: Dict[str, Union[List, Graph]]
 
 
 class Node(NamedTuple):
     key: str
-    parents: tuple
-    children: tuple
+    idx: int
+    parent: set = set()
+    children: set = set()
 
 
 class Graph:
     def __init__(self):
         self._graph = {}
-        self._connectivity = {}
-        self._vertexes = {}
-        self._idx = 0
+        self._edges = []
+        self._total_nodes = 0
         self._cost = collections.defaultdict(lambda: 0)
 
     def add_node(self, node: Node):
         self._graph[node.key] = node
-        self._vertexes[node.key] = self._idx
-        self._idx += 1  # fast retrivial of nodes
-        for s in node.parents:
-            self._connectivity[(node.key, s)] = 1
-        for t in node.children:
-            self._connectivity[(node.key, t)] = 1
+        self._total_nodes += 1
+        for s in node.children:
+            self._edges.append((node.key, s))
 
     def get_pa(self):
         pa = []
         for node in self._graph.values():
-            if len(node.children) == 0 or len(node.parents) == 0:
-                continue
-            pa.append(node.key)
+            if "v" in node.key:
+                pa.append(node.key)
         return pa
-
-    def add_edge(self, src: str, target: str, value: int = 1):
-        self._connectivity[(src, target)] = value
 
     def update(self, key: str):
         node = self._graph.pop(key)
-        for parent in node.parents:
-            for child in node.children:
-                self.add_edge(parent, child)
-                self.add_edge(parent, key, value=0)
-                self.add_edge(key, child, value=0)
+        in_edge = set()
+        out_edge = set()
+        for edge in self._edges:
+            if node.key == edge[0]:
+                out_edge.add(edge[1])
+            elif node.key == edge[1]:
+                in_edge.add(edge[0])
+            else:
+                continue
+        for parent in in_edge:
+            self._edges.remove((parent, key))
+            for child in out_edge:
+                try:
+                    self._edges.remove((key, child))
+                except ValueError:
+                    pass
+                self._edges.append((parent, child))
         return node
 
     def get_connectivity(self) -> np.ndarray:
-        n = len(self._vertexes)
+        n = self._total_nodes
         out = np.zeros((n, n))
-        # Meh?
-        for edge, value in self._connectivity.items():
+        for edge in self._edges:
             r, c = edge
-            r = self._vertexes[r]
-            c = self._vertexes[c]
-            out[r, c] = value
+            r = self._graph[r].idx
+            c = self._graph[c].idx
+            out[r, c] += 1
         return out
 
 
 def make_graph() -> Graph:
     graph = Graph()
-    for k in PATH.keys():
-        node = Node(k, *PATH[k])
+    for idx, k in enumerate(PATH.keys()):
+        node = Node(k, idx=idx, children=set(PATH[k]))
         graph.add_node(node)
     return graph
 
@@ -90,7 +97,7 @@ def make_graph() -> Graph:
 class Env(gym.Env):
     def __init__(self):
         self.graph = make_graph()
-        self.action_space = gym.spaces.Discrete(len(self.graph._vertexes))
+        self.action_space = gym.spaces.Discrete(len(self.graph._graph.keys()))
         self.t = 0
         self.history = []
 
@@ -126,7 +133,7 @@ class Env(gym.Env):
         return m0, 0, False, info
 
     def render(self, mode="human"):
-        return
+        plot_computational_graph(self.graph._edges)
 
     def get_state(self) -> GameState:
         state = self.graph.get_connectivity()

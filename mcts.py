@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Tuple, List, Union
+from typing import Tuple, List, Union, Text
 
 import gym
 import numpy as np
@@ -37,6 +37,7 @@ class Evaluator:
 class Node:
     def __init__(self, action: Union[int, None], prior: float = 1.0):
         self.total_reward = 0.0
+        self.reward = 0.0
         self.explore_count = 0
         self.children = {}
         self.prior = prior
@@ -50,13 +51,16 @@ class Node:
     def value(self) -> float:
         if self.explore_count == 0:
             return 0
-        return self.total_reward / self.explore_count
+        return self.reward + self.total_reward / self.explore_count
 
     def sort_key(self) -> Tuple[float, int, float]:
         return self.value(), self.explore_count, self.total_reward
 
     def best_child(self) -> Node:
         return max(self.children.values(), key=Node.sort_key)
+
+    def __repr__(self) -> Text:
+        return "A:{}, V:{}, #:{}".format(self.action, self.value(), self.explore_count)
 
 
 def mcts(state, simulator, evaluator, config):
@@ -65,7 +69,6 @@ def mcts(state, simulator, evaluator, config):
     for n in range(config.num_simulations):
         simulator.set_state(state)
         path = select(root, simulator)
-        expand(path[-1], simulator.get_state())
         value = evaluator.evaluate(simulator.get_state())
         backpropagate(path, value)
     return root
@@ -78,18 +81,25 @@ def expand(node, state):
 
 def backpropagate(path: List[Node], value: float):
     for node in reversed(path):
-        node.total_reward += value
+        node.total_reward = value
         node.explore_count += 1
+        value = node.reward + value
 
 
 def select(root: Node, game: gym.Env, uct_c: float = 1.25) -> List[Node]:
     path = [root]
     node = root
-    while node.explore_count > 0 and len(node.children) > 0:
+    while node.explore_count > 0:
+        if not node.children:
+            expand(node, game.get_state())
         node = max(
             node.children.values(),
             key=lambda c: Node.uct(c, node.explore_count, uct_c)
         )
-        game.step(node.action)
+        _, reward, done, info = game.step(node.action)
+        node.reward = reward
         path.append(node)
+        if done:
+            break
+
     return path

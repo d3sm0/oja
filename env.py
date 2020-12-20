@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import collections
 import copy
+import itertools
 from typing import NamedTuple, Dict, Any, Tuple, Union, List
 
 import gym
@@ -9,14 +10,14 @@ import numpy as np
 
 from utils import plot_computational_graph
 
-PATH = {"x1": ("v1", "y3"),
-        "x2": ("v1",),
-        "x3": ("v1",),
-        "v1": ("v2", "y3"),
-        "v2": ("y1", "y2", "y3"),
-        "y1": (),
-        "y2": (),
-        "y3": (),
+PATH = {"x1": (),
+        "x2": (),
+        "x3": (),
+        "v1": ("x1", "x2", "x3"),
+        "v2": ("v1",),
+        "y1": ("v2", "x1",),
+        "y2": ("v2",),
+        "y3": ("v2", "v1"),
         }
 
 
@@ -28,10 +29,16 @@ class GameState(NamedTuple):
 
 
 class Node(NamedTuple):
-    key: str
-    idx: int
-    parent: set = set()
-    children: set = set()
+    name: str
+    op: str = ""
+    idx: int = 0
+    input: set = set()
+
+
+class Edge(NamedTuple):
+    input: str
+    child: str
+    label: str = ""
 
 
 class Graph:
@@ -42,16 +49,17 @@ class Graph:
         self._cost = collections.defaultdict(lambda: 0)
 
     def add_node(self, node: Node):
-        self._graph[node.key] = node
+        self._graph[node.name] = node
         self._total_nodes += 1
-        for s in node.children:
-            self._edges.append((node.key, s))
+        for s in node.input:
+            self._edges.append((s, node.name))
 
     def get_pa(self):
         pa = []
         for node in self._graph.values():
-            if "v" in node.key:
-                pa.append(node.key)
+            if "IO" in node.op or len(node.input) == 0:
+                continue
+            pa.append(node.name)
         return pa
 
     def update(self, key: str):
@@ -59,20 +67,27 @@ class Graph:
         in_edge = set()
         out_edge = set()
         for edge in self._edges:
-            if node.key == edge[0]:
+            if node.name == edge[0]:
                 out_edge.add(edge[1])
-            elif node.key == edge[1]:
+            elif node.name == edge[1]:
                 in_edge.add(edge[0])
             else:
                 continue
-        for parent in in_edge:
-            self._edges.remove((parent, key))
-            for child in out_edge:
+        for child, parent in itertools.product(*[out_edge, in_edge]):
+            while True:
                 try:
                     self._edges.remove((key, child))
                 except ValueError:
-                    pass
-                self._edges.append((parent, child))
+                    break
+            while True:
+                try:
+                    self._edges.remove((parent, key))
+                except ValueError:
+                    break
+            self._edges.append((parent, child))
+        for edge in self._edges:
+            assert key != edge[0] and key != edge[1]
+
         return node
 
     def get_connectivity(self) -> np.ndarray:
@@ -88,9 +103,11 @@ class Graph:
 
 def make_graph() -> Graph:
     graph = Graph()
-    for idx, k in enumerate(PATH.keys()):
-        node = Node(k, idx=idx, children=set(PATH[k]))
-        graph.add_node(node)
+    import pickle
+    with open("graph.pkl", "rb") as f:
+        nodes, edges = pickle.load(f)
+    for idx, node in enumerate(nodes):
+        graph.add_node(Node(name=node.name, idx=idx, input=node.input, op=node.op))
     return graph
 
 

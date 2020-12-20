@@ -25,7 +25,7 @@ def main():
         # action = actions[t]  # root.best_child().action
         state, reward, done, info = env.step(action)
         total_reward += reward
-        # env.render()
+        env.render()
         print(info)
         t += 1
         # actions.append(root.best_child().action)

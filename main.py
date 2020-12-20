@@ -14,10 +14,10 @@ def main():
     simulator = Env()
     evaluator = Evaluator(game=simulator, n_rollouts=config.num_rollouts)
     state, _, done, info = env.reset()
+    actions =[]
     assert info["pa"]
     total_reward = 0
     t = 0
-    actions = ["v2", "v1"]
     # env.render()
     while not done:
         #action = np.random.choice(info["pa"])
@@ -28,8 +28,7 @@ def main():
         env.render()
         print(info)
         t += 1
-        # actions.append(root.best_child().action)
-    print(actions)
+        actions.append(action)
     print(total_reward)
 
 

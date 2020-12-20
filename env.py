@@ -8,6 +8,7 @@ from typing import NamedTuple, Dict, Any, Tuple, Union, List
 import gym
 import numpy as np
 
+from utils import operation_count
 from utils import plot_computational_graph
 
 PATH = {"x1": (),
@@ -108,12 +109,14 @@ def make_graph() -> Graph:
         nodes, edges = pickle.load(f)
     for idx, node in enumerate(nodes):
         graph.add_node(Node(name=node.name, idx=idx, input=node.input, op=node.op))
+
     return graph
 
 
 class Env(gym.Env):
     def __init__(self):
         self.graph = make_graph()
+        print("bwd op count:", operation_count(self.graph.get_connectivity()))
         self.action_space = gym.spaces.Discrete(len(self.graph._graph.keys()))
         self.t = 0
         self.history = []

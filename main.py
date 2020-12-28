@@ -9,8 +9,8 @@ class config:
 
 
 def main():
-    env = Env()
-    simulator = Env()
+    env = Env(fname="basic_graph")
+    simulator = Env(fname="basic_graph")
     evaluator = Evaluator(game=simulator, n_rollouts=config.num_rollouts)
     state, _, done, info = env.reset()
     actions = []

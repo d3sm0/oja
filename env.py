@@ -1,9 +1,9 @@
 # from __future__ import annotations
-
 import collections
 import copy
 import itertools
 import os
+import pickle
 from typing import NamedTuple, Dict, Any, Tuple, Union, List
 
 import gym
@@ -103,11 +103,22 @@ class Graph:
         return out
 
 
-def make_graph() -> Graph:
+def save_graph():
+    nodes = []
+    for idx, (node_name, edge) in enumerate(PATH.items()):
+        op = "IO" if "y" in node_name else "no_op"
+        nodes.append(Node(name=node_name, idx=idx, op=op, input=edge))
+    with open("assets/basic_graph.pkl", "wb") as f:
+        pickle.dump((nodes, {}), f)
+
+
+save_graph()
+
+
+def make_graph(fname) -> Graph:
     graph = Graph()
-    import pickle
-    with open("assets/graph.pkl", "rb") as f:
-        nodes, edges = pickle.load(f)
+    with open(f"assets/{fname}.pkl", "rb") as f:
+        nodes, _ = pickle.load(f)
     for idx, node in enumerate(nodes):
         graph.add_node(Node(name=node.name, idx=idx, input=node.input, op=node.op))
 
@@ -115,8 +126,9 @@ def make_graph() -> Graph:
 
 
 class Env(gym.Env):
-    def __init__(self):
-        self.graph = make_graph()
+    def __init__(self, fname="graph"):
+        self.fname = fname
+        self.graph = make_graph(fname)
         print("bwd op count:", operation_count(self.graph.get_connectivity()))
         self.action_space = gym.spaces.Discrete(len(self.graph._graph.keys()))
         self.t = 0
@@ -144,7 +156,7 @@ class Env(gym.Env):
 
     def reset(self) -> Tuple[np.ndarray, int, bool, Dict[str, Any]]:
         self.t = 0
-        self.graph = make_graph()
+        self.graph = make_graph(self.fname)
 
         m0 = self.graph.get_connectivity()
         info = {
@@ -154,7 +166,7 @@ class Env(gym.Env):
         return m0, 0, False, info
 
     def render(self, mode="human"):
-        plot_computational_graph(self.graph._edges, os.path.join("assets", f"graph_{self.t}"))
+        plot_computational_graph(self.graph._edges, os.path.join("assets", f"{self.fname}_{self.t}"))
 
     def get_state(self) -> GameState:
         state = self.graph.get_connectivity()

@@ -1,7 +1,7 @@
 # from __future__ import annotations
 
 import os
-from typing import Tuple, List, Union, Text
+from typing import Tuple, List, Union, Text, Any
 
 import gym
 import numpy as np
@@ -57,7 +57,7 @@ class Node:
     def sort_key(self) -> Tuple[float, int, float]:
         return self.value(), self.explore_count, self.total_reward
 
-    def best_child(self) -> Node:
+    def best_child(self) -> Any:
         return max(self.children.values(), key=Node.sort_key)
 
     def __repr__(self) -> Text:

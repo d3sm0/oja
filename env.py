@@ -27,7 +27,7 @@ class GameState(NamedTuple):
     state: np.ndarray
     # reward: float
     done: bool
-    info: Dict[str, Union[List, Graph]]
+    info: Dict[str, Union[List, Any]]
 
 
 class Node(NamedTuple):

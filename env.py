@@ -3,6 +3,7 @@ from __future__ import annotations
 import collections
 import copy
 import itertools
+import os
 from typing import NamedTuple, Dict, Any, Tuple, Union, List
 
 import gym
@@ -105,7 +106,7 @@ class Graph:
 def make_graph() -> Graph:
     graph = Graph()
     import pickle
-    with open("graph.pkl", "rb") as f:
+    with open("assets/graph.pkl", "rb") as f:
         nodes, edges = pickle.load(f)
     for idx, node in enumerate(nodes):
         graph.add_node(Node(name=node.name, idx=idx, input=node.input, op=node.op))
@@ -153,7 +154,7 @@ class Env(gym.Env):
         return m0, 0, False, info
 
     def render(self, mode="human"):
-        plot_computational_graph(self.graph._edges)
+        plot_computational_graph(self.graph._edges, os.path.join("assets", f"graph_{self.t}"))
 
     def get_state(self) -> GameState:
         state = self.graph.get_connectivity()

@@ -3,7 +3,7 @@ from typing import Tuple
 import numpy as np
 
 
-def plot_mcts(root, plot=True):
+def plot_mcts(root, fname=""):
     """
     Plot the MCTS, pdf file is saved in the current directory.
     """
@@ -13,7 +13,7 @@ def plot_mcts(root, plot=True):
         print("Please install graphviz to get the MCTS plot.")
         return None
 
-    graph = Digraph(comment="MCTS", engine="neato")
+    graph = Digraph(comment="MCTS", engine="dot")
     graph.attr("graph", rankdir="LR", splines="true", overlap="false")
     id = 0
 
@@ -49,50 +49,22 @@ def plot_mcts(root, plot=True):
     traverse(root, None, None, True)
     graph.node(str(0), color="red")
     # print(graph.source)
-    graph.render("mcts", view=False, cleanup=True, format="dot")
+    graph.render(fname, view=False, cleanup=True, format="png")
     return graph
 
 
-def plot_computational_graph(graph):
+def plot_computational_graph(graph, fname=""):
     try:
         from graphviz import Digraph
     except ModuleNotFoundError:
         print("Please install graphviz to get the MCTS plot.")
         return None
 
-    # from env import PATH
     digraph = Digraph(comment="graph", engine="dot")
-    digraph.attr("graph", ranksep="equally", rank="same", rankdir="LR", ordering="out")
+    digraph.attr("graph", rankdir="lR", size="8,5")
     for edges in graph:
         digraph.edge(*edges)
-        # digraph.node(name=node)
-        # child  = edges
-        # if len(child):
-        #    for c in child:
-        #        digraph.edge(node, c)
-        # if len(parent):
-        #    for p in parent:
-        #        digraph.edge(p, node)
-    digraph.render("graph", view=True, format="pdf")
-    print("")
-
-    # order_graph.edge(style="invis")
-    # for key in graph._vertexes.keys():
-    #    # rank = get_rank(key)
-    #    digraph.node(name=key, label=key, rank="same")
-    # for (parent, child), value in graph._connectivity.items():
-    #    if value == 1:
-    #        digraph.edge(parent, child)
-
-    # order_graph = Digraph(edge_attr={"style": "invis"}, node_attr={"style": "invis"})
-
-    # order_graph.node("root", shape="record")
-    # order_graph.node("", style="invis")
-    # order_graph.edges((("x", "v"), ("v", "y")))
-
-    # digraph.subgraph(order_graph)
-    # order_graph.render(view=True)
-    # return graphif
+    digraph.render(fname, view=False, format="png", cleanup=True)
 
 
 def back_substitution(matrix: np.ndarray, b: np.ndarray) -> Tuple[np.ndarray, int]:
@@ -122,4 +94,4 @@ def operation_count(jacobian):
 
 
 if __name__ == '__main__':
-    operation_count(jacobian=np.eye(10), vector=np.ones(10))
+    operation_count(jacobian=np.eye(10))

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Tuple, List, Union, Text
 
 import gym
@@ -63,6 +64,9 @@ class Node:
         return "A:{}, V:{}, #:{}".format(self.action, self.value(), self.explore_count)
 
 
+from utils import plot_mcts
+
+
 def mcts(state, simulator, evaluator, config):
     root = Node(action=None)
     # epxand root + dirichile noise
@@ -71,6 +75,7 @@ def mcts(state, simulator, evaluator, config):
         path = select(root, simulator)
         value = evaluator.evaluate(simulator.get_state())
         backpropagate(path, value)
+    plot_mcts(root, fname=os.path.join("assets", f"mcts_{len(root.children)}"))
     return root
 
 

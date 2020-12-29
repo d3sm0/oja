@@ -9,14 +9,15 @@ class config:
 
 
 def main():
-    env = Env(fname="basic_graph")
-    simulator = Env(fname="basic_graph")
+    env = Env(fname="graph")
+    simulator = Env(fname="graph")
     evaluator = Evaluator(game=simulator, n_rollouts=config.num_rollouts)
     state, _, done, info = env.reset()
     actions = []
     assert info["pa"]
     total_reward = 0
     t = 0
+    env.render()
     while not done:
         action = mcts(env.get_state(), simulator, evaluator, config).best_child().action
         state, reward, done, info = env.step(action)

@@ -1,4 +1,5 @@
 # Accumulation path
+import pickle
 import string
 
 import torch.autograd as autograd
@@ -144,7 +145,7 @@ def renamed_graph():
 
 def get_policies():
     oja_policy = [_symbolic_graph[p] for p in policy]
-    reverse_policy = [_symbolic_graph[p] for p in policy]
+    reverse_policy = [_symbolic_graph[p] for p in reverse_mode]
     return oja_policy, reverse_policy
 
 def save_graph():
@@ -158,4 +159,3 @@ def save_graph():
     oja_policy, reverse_policy = get_policies()
     with open("renamed_graph.pkl", "wb") as f:
         pickle.dump((graph, (oja_policy, reverse_policy)), f)
-

@@ -53,7 +53,7 @@ def plot_mcts(root, fname=""):
     return graph
 
 
-def plot_computational_graph(graph, fname=""):
+def plot_computational_graph(graph, fname="", view=False):
     try:
         from graphviz import Digraph
     except ModuleNotFoundError:
@@ -62,9 +62,9 @@ def plot_computational_graph(graph, fname=""):
 
     digraph = Digraph(comment="graph", engine="dot")
     digraph.attr("graph", rankdir="lR", size="8,5")
-    for edges in graph:
-        digraph.edge(*edges)
-    digraph.render(fname, view=False, format="png", cleanup=True)
+    for edge_label, edge in graph.items():
+        digraph.edge(*edge_label, label=edge.label)
+    digraph.render(fname, view=view, format="png", cleanup=True)
 
 
 def back_substitution(matrix: np.ndarray, b: np.ndarray) -> Tuple[np.ndarray, int]:

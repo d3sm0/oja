@@ -1,13 +1,13 @@
 # from __future__ import annotations
 import collections
 import copy
-import itertools
 import os
 import pickle
 from typing import NamedTuple, Dict, Any, Tuple, Union, List
 
 import gym
 import numpy as np
+import torch
 
 from utils import operation_count
 from utils import plot_computational_graph
@@ -30,31 +30,59 @@ class GameState(NamedTuple):
     info: Dict[str, Union[List, Any]]
 
 
-class Node(NamedTuple):
-    name: str
+class Node:
+    name: str = ""
     op: str = ""
     idx: int = 0
     input: set = set()
 
+    def __init__(self, *args, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
 
-class Edge(NamedTuple):
+    def __repr__(self):
+        return f"{self.name}:{self.input}"
+
+
+class Edge:
     input: str
     child: str
-    label: str = ""
+    count: int = 0
+    jacobian = 0
+
+    def __init__(self, *args, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+    def __repr__(self):
+        return f"{self.input}->{self.child} {float(self.jacobian):.4f}"
+    @property
+    def label(self):
+        return self.__repr__()
 
 
 class Graph:
     def __init__(self):
         self._graph = {}
-        self._edges = []
+        self._edges = {}
         self._total_nodes = 0
-        self._cost = collections.defaultdict(lambda: 0)
+        self._cost = {}
+
+    def __iter__(self):
+        for name, node in self._graph.items():
+            yield name, node
+
+    def compute_edges(self):
+        for node_name, node in self._graph.items():
+            for parent in node.input:
+                edge = Edge(input=parent, child=node.name)
+                key = (parent, node.name)
+                assert parent in self._graph.keys()
+                self._edges[key] = edge
 
     def add_node(self, node: Node):
         self._graph[node.name] = node
         self._total_nodes += 1
-        for s in node.input:
-            self._edges.append((s, node.name))
 
     def get_pa(self):
         pa = []
@@ -66,40 +94,44 @@ class Graph:
 
     def update(self, key: str):
         node = self._graph.pop(key)
-        in_edge = set()
-        out_edge = set()
-        for edge in self._edges:
+        parents = []
+        for edge in self._edges.keys():
+            if node.name == edge[1]:
+                parents.append(edge)
+        children = []
+        for edge in self._edges.keys():
             if node.name == edge[0]:
-                out_edge.add(edge[1])
-            elif node.name == edge[1]:
-                in_edge.add(edge[0])
-            else:
-                continue
-        for child, parent in itertools.product(*[out_edge, in_edge]):
-            while True:
+                children.append(edge)
+        for parent in parents:
+            for child in children:
+                updated_jacobian = torch.sum(self._edges[parent].jacobian * self._edges[child].jacobian, dim=-1)
                 try:
-                    self._edges.remove((key, child))
-                except ValueError:
-                    break
-            while True:
-                try:
-                    self._edges.remove((parent, key))
-                except ValueError:
-                    break
-            self._edges.append((parent, child))
-        for edge in self._edges:
-            assert key != edge[0] and key != edge[1]
+                    new_edge = self._edges[(parent[0], child[1])]
+                    new_edge.jacobian += updated_jacobian
+                    new_edge.count += 1
+                except KeyError:
+                    new_edge = Edge(input=parent[0], child=child[1], jacobian=updated_jacobian, count=1)
+                    self._edges[(parent[0], child[1])] = new_edge
+                self._graph[child[1]].input.add(parent[0])
 
+        for edge in parents + children:
+            self._edges.pop(edge)
+        for child in children:
+            self._graph[child[1]].input.remove(node.name)
+
+        for k in self._edges.keys():
+            assert node.name not in k
         return node
 
     def get_connectivity(self) -> np.ndarray:
         n = self._total_nodes
+        # this is the extend jacobian
         out = np.zeros((n, n))
-        for edge in self._edges:
+        for edge in self._edges.keys():
             r, c = edge
             r = self._graph[r].idx
             c = self._graph[c].idx
-            out[r, c] += 1
+            out[r, c] += self._edges[edge].jacobian
         return out
 
 
@@ -112,15 +144,13 @@ def save_graph():
         pickle.dump((nodes, {}), f)
 
 
-save_graph()
-
-
 def make_graph(fname) -> Graph:
     graph = Graph()
     with open(f"assets/{fname}.pkl", "rb") as f:
         nodes, _ = pickle.load(f)
     for idx, node in enumerate(nodes):
         graph.add_node(Node(name=node.name, idx=idx, input=node.input, op=node.op))
+    graph.compute_edges()
 
     return graph
 

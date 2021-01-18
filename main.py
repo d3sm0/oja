@@ -26,6 +26,7 @@ def main():
         print(info)
         t += 1
         actions.append(action)
+    print(actions)
     print("Total number of operations required:", -total_reward)
 
 

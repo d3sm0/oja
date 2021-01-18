@@ -1,5 +1,6 @@
 # from __future__ import annotations
 
+
 import os
 from typing import Tuple, List, Union, Text, Any
 
@@ -7,6 +8,7 @@ import gym
 import numpy as np
 
 from env import GameState
+from utils import plot_mcts
 
 
 class Evaluator:
@@ -62,9 +64,6 @@ class Node:
 
     def __repr__(self) -> Text:
         return "A:{}, V:{}, #:{}".format(self.action, self.value(), self.explore_count)
-
-
-from utils import plot_mcts
 
 
 def mcts(state, simulator, evaluator, config):

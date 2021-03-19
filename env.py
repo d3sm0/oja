@@ -1,5 +1,8 @@
 # from __future__ import annotations
 import collections
+# TODO add terminal cost that promotes sparsity of the full Jacobian (e.g. non-zero entries)
+# TODO add non-zero entries
+# TODO add shape reward for contracting matrices
 import copy
 import os
 import pickle
@@ -169,7 +172,9 @@ class Env(gym.Env):
         node = self.graph.update(action)
         m1 = self.graph.get_connectivity()
         self.history.append(node)
-
+        # TODO new_edges - old_edges now must become dependent on the degreee of sparisty
+        # and the dimension of the muliplied jacobian
+        # instead of a unitary "fill-in" we have a "fill-in" given by (n x k)  (k x m)
         added = np.clip(m1 - m0, 0, 1)
         deleted = np.abs(np.clip(m1 - m0, -1, 0))
 

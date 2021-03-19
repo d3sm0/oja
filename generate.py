@@ -1,6 +1,22 @@
+# generate random computational graph
+import enum
+# each vertex has input size output size and n_edges
+import typing
+
 import numpy as np
 
-# generate random computational graph
+
+class Operation(enum.IntEnum):
+    accumulate = 0  # accumulate
+    tangent = 1  # forward
+    adjoint = 2  # backward
+
+
+class Cost:
+    output_dim = 0
+    input_dim = 1
+    n_edges = 2
+
 
 np.random.seed(0)
 
@@ -24,82 +40,86 @@ def solve_dp(dptable, cost_fn, n_factors, n_features):
     return pre_accumulation + dptable[n_factors - 1, 0, 0]
 
 
-import enum
-
-
-class Operation(enum.IntEnum):
-    MM = 0
-    GM = 1
-    MG = 2
-
-
-class Cost:
-    output_dim = 0
-    input_dim = 1
-    n_edges = 2
-
-
-def solve_gdp(dptable, cost_fn, n_factors):
-    n_edges = 2
-    n = 1
-    m = 0
-    MM = 0
-    GM = 1
-    MG = 2
-    opt_cost = 0
-    split_pos = 1
-    opt_type = 2
-
-    for j in range(n_factors):
-        for i in reversed(range(0, j + 1)):
-            if i == j:
-                dptable[j, i, opt_cost] = cost_fn[j, n_edges] * min(cost_fn[j])
-                dptable[j, i, split_pos] = 0
-                if cost_fn[j, m] < cost_fn[j, n]:
-                    dptable[j, i, opt_type] = MG
-                else:
-                    dptable[j, i, opt_type] = GM
-            else:
-                for k in range(i + 1, j + 1):
-                    cost = dptable[j, k, opt_cost] + dptable[k - 1, i, opt_cost] + cost_fn[j, m] * cost_fn[k, n] * \
-                           cost_fn[i, n]
-                    if k == i + 1 or cost < dptable[j, i, opt_cost]:
-                        # what does it mean split position
-                        dptable[j, i] = (cost, k, MM) # here split changes
-
-                    cost = dptable[k - 1, i, opt_cost]
-                    depth = 0
-
-                    for kk in range(k, j + 1):
-                        depth += cost_fn[kk, n_edges]
-
-                    cost += cost_fn[i, n] * depth
-
-                    if cost < dptable[j, i, opt_cost]:
-                        dptable[j, i, opt_cost] = cost
-                        dptable[j, i, opt_type] = GM
-
-                    cost = dptable[j, k, opt_cost]
-                    depth = 0
-
-                    for kk in range(i, k):
-                        depth += cost_fn[kk, n_edges]
-
-                    cost += cost_fn[j, m] * depth
-
-                    if cost < dptable[j, i, opt_cost]:
-                        dptable[j, i, opt_cost] = cost
-                        dptable[j, i, opt_type] = MG
-    # print(dptable)
-    return dptable[n_factors - 1, 0, 0]
+# aux = 0 for cost, 1 for split, 2 action
+# state = (j, i, aux)
 
 
 def test_graph():
-    # output, input, number of edges
+    # Key assumption: within a layer or module the dimension do not change
+    # elemental operation are "element wise" so they are applied at every element of the jacobian
+    # output_size, input_size, number of edges
+    # number of edges is the number of elemental operations inside the ith layer
+    # for example linear layer n_edges = 3: dot,sum, relu, and a total cost of n * m
     graph = np.array([[3, 3, 29],
                       [1, 3, 14],
                       [2, 1, 7]])
     return graph
+
+
+class Vertex(typing.NamedTuple):
+    n = 0
+    m = 0
+    n_edges = 0
+
+
+def solve_gdp(dptable, cost_fn, depth):
+    n_edges = 2
+    input_slice = 1
+    output_slice = 0
+    opt_cost = 0
+    split_pos = 1
+    action_slice = 2
+
+    for parent in range(depth):
+        for child in reversed(range(0, parent + 1)):
+            if child == parent:
+                # here using min is scale indpendent, so we can pull it out, but in reality min is a "decision" not a feature of the cost function
+                dptable[parent, child, opt_cost] = cost_fn[parent, n_edges] * min(cost_fn[parent, output_slice],
+                                                                                  cost_fn[child, input_slice])
+                dptable[parent, child, split_pos] = 0
+                if cost_fn[parent, output_slice] < cost_fn[parent, input_slice]:
+                    dptable[parent, child, action_slice] = Operation.adjoint
+                else:
+                    dptable[parent, child, action_slice] = Operation.tangent
+            else:
+                for successor in range(child + 1, parent + 1):
+                    # evaluate terminal
+                    # set number of edges to 1
+                    cost = dptable[parent, successor, opt_cost] + dptable[successor - 1, child, opt_cost]
+                    cost += cost_fn[parent, output_slice] * cost_fn[successor, input_slice] * cost_fn[
+                        child, input_slice]
+                    if successor == child + 1 or cost < dptable[parent, child, opt_cost]:
+                        # what does it mean split position
+                        dptable[parent, child] = (cost, successor, Operation.accumulate)
+
+                        # evaluate for forward
+                    # current reward
+                    cost = dptable[successor - 1, child, opt_cost]
+                    depth = 0
+                    # future values
+                    for kk in range(successor, parent + 1):
+                        depth += cost_fn[kk, n_edges]
+
+                    cost += cost_fn[child, input_slice] * depth
+                    # acceptance condition
+                    if cost < dptable[parent, child, opt_cost]:
+                        dptable[parent, child, opt_cost] = cost
+                        dptable[parent, child, action_slice] = Operation.tangent
+
+                    # evaluate for backward
+                    cost = dptable[parent, successor, opt_cost]
+                    depth = 0
+
+                    for kk in range(child, successor):
+                        depth += cost_fn[kk, n_edges]
+
+                    cost += cost_fn[parent, output_slice] * depth
+
+                    if cost < dptable[parent, child, opt_cost]:
+                        dptable[parent, child, opt_cost] = cost
+                        dptable[parent, child, action_slice] = Operation.adjoint
+    # print(dptable)
+    return dptable[depth - 1, 0, 0]
 
 
 def print_table(table):

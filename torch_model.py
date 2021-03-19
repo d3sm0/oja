@@ -17,30 +17,32 @@ def linear(in_channels, out_channels, stride=1):
 
 # Residual block
 class ResidualBlock(torch.nn.Module):
-    def __init__(self, num_channels, stride=1):
+    def __init__(self, input_dim):
         super().__init__()
-        self.linear1 = linear(num_channels, num_channels)
+        self.fc = torch.nn.Sequential(
+            *[linear(input_dim, input_dim),
+              torch.nn.ReLU(),
+              linear(input_dim, input_dim)]
+        )
         # self.bn1 = torch.nn.BatchNorm2d(num_channels)
-        self.linear2 = linear(num_channels, num_channels)
+        self.act = torch.nn.ReLU()
         # self.bn2 = torch.nn.BatchNorm2d(num_channels)
 
     def forward(self, x):
-        out = self.linear1(x)
+        # TODO off by one op here because count only module
+        out = self.fc(x)
         # out = self.bn1(out)
-        out = out
-        out = self.linear2(out)
+        # out = self.linear2(out)
         # out = self.bn2(out)
-        out = x + out
-        out = out
+        out = self.act(x + out)
         return out
 
 
 def _test_model():
     model = ResidualBlock(1)
-    # model = torch.nn.Sequential(*[torch.nn.Linear(1, 2), torch.nn.ReLU(inplace=True)])
+    import copy
     from profile import count_ops_torch
     model_input = torch.zeros((1,))
-    import copy
     count_ops_torch(copy.deepcopy(model), input_size=model_input.shape)
 
     with torch.onnx.select_model_mode_for_export(model, torch.onnx.TrainingMode.EVAL):
